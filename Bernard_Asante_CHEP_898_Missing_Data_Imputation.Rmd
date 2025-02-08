@@ -1,0 +1,609 @@
+---
+title: "Bernard_Asante_Missing_Data_Imputation"
+author: "Bernard Asante"
+date: "2025-02-01"
+output:
+  html_document:
+    toc: true
+    toc_float: true 
+    toc_depth: 3
+---
+
+# **Loading libraries** 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(visdat)
+library(naniar)
+library(mice)
+library(VIM)
+```
+
+# **Reading the dataset**
+
+```{r}
+path = "T:\\Desktop\\USASK\\Year One\\WINTER\\Data Science\\Data\\can_path_data.csv"
+
+data <- read_csv(path)
+```
+
+## Broad overview of missing data in dataset
+
+```{r}
+miss_var_summary(data)
+```
+
+## Missing data overview
+
+```{r}
+data <- data %>%
+          select(where(~sum(is.na(.x))/length(.x) < 0.17)) 
+
+missing_table <- miss_var_summary(data)
+
+missing_table 
+
+
+# Selecting 11 columns randomly from the dataset due to high computation power required for the entire dataset
+health_data <- data %>% 
+  
+  select(ID,HS_GEN_HEALTH,NUT_VEG_QTY, NUT_FRUITS_QTY,PA_TOTAL_SHORT,DIS_ASTHMA_EVER,DIS_DIAB_EVER)
+
+write.csv(health_data, "health_data.csv")
+```
+
+
+# **Sliced dataset[health_data]**
+
+```{r}
+
+
+health_data <- read_csv("health_data.csv")
+
+health_data %>% 
+  glimpse()
+
+colnames(health_data)
+```
+```{r}
+health_data  %>% 
+  head()
+
+health_data %>% 
+  tail()
+```
+
+```{r}
+health_data %>% 
+  summary()
+```
+It can be observed that each variable has a missing data (NA's)
+
+# **Missing Data Exploration**
+
+```{r}
+missing_columns <- health_data %>% 
+  summarise_all(~sum(is.na(.)))
+  
+
+missing_columns
+
+```
+Now that I know  the missing values for each columns, I want to visualize them on a simple bar graph to see the order frequency of missing values for each column
+
+## Visualization of missing data per columns 
+```{r}
+missing_columns_long <- missing_columns %>% 
+  pivot_longer(cols = HS_GEN_HEALTH:DIS_DIAB_EVER, names_to = "columns", values_to = "counts")
+
+missing_columns_long
+
+missing_plot <- missing_columns_long %>% 
+  ggplot(aes(x = reorder(columns,counts), y = counts))+
+  geom_segment(aes(x = reorder(columns,counts), yend = counts, xend = reorder(columns,counts), y =0))+
+  geom_point(size = 4, colour = "#a13")+
+  coord_flip()+
+  labs(title = "Bar Graph of missing data in the dataset by columns", x = "Column_names")
+  
+missing_plot
+```
+
+## Percentage of the missing data 
+
+```{r}
+missing_data <- miss_var_summary(health_data)
+
+missing_data %>% 
+  head(5)
+```
+I know Physical activity variable has the highest missing values of 16.4% this is evident from the bar graph above.
+
+For other variables, the percentage of missing data is rarely a problem , Nut_veg_qty(6.19%), nut_fruits_qty(5.89%), Dis_asthma_Ever(2.98%) and Hs_Gen_health(1.63%). This is likely to make the data Missing Completely at Random(MCAR). However, it is hard to say for Pa_total_short which has a missing data 0f 16.4%, probably Missing at Random(MAR). These are mere assumptions and need to be analyzed further.
+
+
+# **Visdat** 
+
+## vis_dat()
+```{r}
+data_col_type <- vis_dat(health_data)
+
+data_col_type
+```
+The gray color represents missing values in the dataset. It can be seen that ID has no missing values. Few missing values was seen with some variables which corresponds to the percentages above and the bar graph. we can see a lot of missing data in the Pa_total_short column.
+
+## Vis_miss()
+
+```{r}
+vis_miss(health_data)
+```
+This is to display only the missing values. 
+
+
+## vis_cor()
+
+```{r}
+health_data_numeric <- health_data %>% 
+  select(where(is.numeric)) # Selecting only numeric variables 
+
+vis_cor(health_data_numeric)
+```
+## gg_miss_upset
+
+```{r}
+gg_miss_upset(health_data)
+```
+
+# **Determining the type of missingness**
+
+## Little MCAR test from naniar
+
+```{r}
+mcar_test(health_data)
+
+```
+This suggest that the data is not missing completely at random. This is because, the null hypothesis states that the data is missing completely at random, pvalue of 0 means that the data is not missing completely at random.
+
+I want to see if missingness in pa_total  is MAR or MNAR using logistic regression to see how the various variables predicts the "NA" variables in pa_total_short. Logistic regression is used here because the missing data "NA" is not continuous but rather "TRUE" or "FALSE" as can be seen in _missing_pa_total_. 
+
+## Logistic Regression Model
+
+```{r}
+
+missing_Pa_total <- is.na(health_data$PA_TOTAL_SHORT) %>% 
+  head()
+
+print(missing_Pa_total)
+
+glm(is.na(PA_TOTAL_SHORT) ~ HS_GEN_HEALTH + NUT_FRUITS_QTY + DIS_ASTHMA_EVER, 
+    data = health_data, 
+    family = binomial) %>% 
+  summary()
+
+```
+It can be observed that all the variables has a pvalue < 0.002 indicating they are significant predictors of the missingness in the pa_total_short variable. Again this is an assumption from the model and can not be proven with high certainty
+
+## Geom_miss_plot
+
+```{r}
+scatter_plot_miss <- ggplot(health_data, aes(x = NUT_FRUITS_QTY, y = PA_TOTAL_SHORT)) + 
+                  geom_miss_point(alpha = 0.2) +
+                  labs(x = "Fruits", y = "Physical Activity")
+plot(scatter_plot_miss)
+```
+It can be observed that missing decreases as fruit intake  increases above 8. A lot of missing data was also between 0 to 5000 minutes of exercise, however, missingness reduces above 5000 minutes upwards.
+
+
+
+# **Shadow matrix**
+
+```{r}
+data_shadow <- health_data %>% 
+  bind_shadow()
+
+data_shadow %>% 
+  head()
+```
+
+# **Data Imputation**
+
+
+## Summarizing missing data 
+
+```{r}
+
+summary(health_data$PA_TOTAL_SHORT)
+
+health_data %>% summarise(
+  n_distinct = n_distinct(PA_TOTAL_SHORT),
+  mean_data = mean(PA_TOTAL_SHORT,na.rm = TRUE),
+  n_miss = sum(is.na(PA_TOTAL_SHORT)),
+  median_data = median(PA_TOTAL_SHORT, na.rm = TRUE)
+)
+```
+# **Mean Imputation**
+
+```{r}
+data_shadow$pa_not_imputed <- data_shadow$PA_TOTAL_SHORT  # Adding a column called pa_not_imputed to maintain pa_total values after imputation
+
+data_shadow <- impute_mean_at(data_shadow, .vars = vars(PA_TOTAL_SHORT))
+
+
+data_shadow %>% 
+  head()
+```
+
+## Visualizing Density Plots
+
+```{r}
+density_mean_imp <- ggplot(data_shadow) +
+                geom_density(aes(pa_not_imputed, colour= "pa_not_imputed")) +
+                geom_density(aes(PA_TOTAL_SHORT, colour= "PA_TOTAL_SHORT"))
+plot(density_mean_imp)
+```
+
+## Descriptive comparison of imputed and non imputed dataset
+
+```{r}
+median_pa_not_imputed <- median(data_shadow$pa_not_imputed,na.rm = TRUE)
+
+median_pa_not_imputed
+
+
+median_pa_imputed <- median(data_shadow$PA_TOTAL_SHORT) # "NA" has been removed so need not to add na.rm
+median_pa_imputed
+
+
+```
+
+I can be observed that the median for non imputed pa short column  is 1782 and increased to 2379 after mean imputation. 
+
+
+## Boxplot of PA_TOTAL_SHORT before mean_imputation
+
+
+```{r}
+ggplot(data_shadow, aes(x  = pa_not_imputed)) +
+         geom_boxplot(outlier.shape = NA) +  # Avoid extreme outliers hiding the boxplot
+         labs(title = " Total Physical Activity Before Mean Imputation",
+              subtitle = "Median around 1700 ",
+              y = "Total Physical Activity")+
+         coord_flip()+
+         theme_minimal()
+```
+
+We can see the median for the non imputed variable is around 1700
+
+
+## Boxplot of PA_TOTAL_SHORT after mean_imputation
+
+```{r, warning=FALSE}
+
+ggplot(data_shadow, aes(x  = PA_TOTAL_SHORT)) +
+  geom_boxplot(oulier.shape = NA) +
+  labs(title = " Total Physical Activity after Mean Imputation",
+       subtitle = "Median around 2500 ",
+       y = "Total Physical Activity") +
+  coord_flip()+
+  theme_minimal()
+
+```
+
+
+
+
+The median value from the graph can not be determined explicitly with full certainty however, it is probably around  2500. Mean imputation can bias estimate from these observations. 
+
+
+# **MICE Imputation**
+
+```{r}
+
+data_mice <- mice(health_data, m = 5, maxit = 5)
+
+data_mice_complete <- complete(data_mice, action = "long")
+
+data_mice_complete %>% 
+  head()
+
+data_mice_complete %>% 
+  tail()
+
+data_mice$method
+```
+
+I want to join the variables in data_mice_complete with health_data. However, they have the same columns name which may be confusing, so I want to rename the data_mice_complete variable. 
+
+## Renaming of data_mice variables 
+
+```{r}
+data_mice_complete <- data_mice_complete %>% 
+  rename(HS_GEN_HEALTH_imp = HS_GEN_HEALTH,
+         NUT_VEG_QTY_imp = NUT_VEG_QTY,
+         NUT_FRUITS_QTY_imp = NUT_FRUITS_QTY,
+         PA_TOTAL_SHORT_imp = PA_TOTAL_SHORT,
+         DIS_ASTHMA_EVER_imp = DIS_ASTHMA_EVER)
+
+data_mice_complete %>% 
+  head()
+```
+
+
+## Joining the two datasets 
+
+```{r}
+
+health_data_c <- full_join( health_data, data_mice_complete, by = join_by("ID")) 
+
+health_data_c %>% 
+  head()
+
+```
+
+## Data Visualization 
+
+### Density plot of PA_TOTAL_SHORT
+
+```{r}
+summary(health_data_c$PA_TOTAL_SHORT)
+summary(health_data_c$PA_TOTAL_SHORT_imp)
+
+density_imp <- ggplot(health_data_c) +
+                geom_density(aes(PA_TOTAL_SHORT, colour= "PA_TOTAL_SHORT")) +
+                geom_density(aes(PA_TOTAL_SHORT_imp, colour= "PA_TOTAL_SHORT_imp"))
+plot(density_imp)
+
+```
+
+
+
+###  Density plot of PA_TOTAL_SHORT by .imp
+
+```{r}
+density_m_5 <- health_data_c %>% 
+  mutate(.imp = as.factor(.imp)) %>%   # Converting .imp to a factor 
+  ggplot(aes(x = PA_TOTAL_SHORT_imp, colour = .imp)) +
+                geom_density()
+plot(density_m_5)
+```
+
+The two main dataset that I am using are the health_data which contains missing data and data_mice_complete  which contains imputed values.Now this datasets have been joined to health_data_c. 
+
+Let me summarize all the datasets before I proceed.
+
+## Descriptive summary of Dataset before and after MICE imputation
+
+###  Descriptive summary of health_data before imputation
+
+```{r}
+health_data_miss <- miss_var_summary(health_data)
+
+health_data_miss
+
+```
+
+### Summary of dataset befoe MICE imputation
+
+```{r}
+
+health_data %>% 
+  summary()
+
+```
+
+### Boxplot of PA_TOTAL_SHORT before MICE_imputation
+
+```{r}
+
+pa_short_plot <- health_data %>% 
+  ggplot(aes(PA_TOTAL_SHORT))+
+  geom_boxplot()+
+  labs(title = "Boxplot of Total physcial activity before MICE imputation",
+       subtitle = "Median can be seen around around 1700")+
+  coord_flip()
+
+pa_short_plot
+```
+
+We can see the median of Physical activity total is around 1700 minutes.
+
+### Summary of Dataset after MICE Imputation 
+
+```{r}
+health_data_imputed <- miss_var_summary(data_mice_complete)
+health_data_imputed
+
+data_mice_complete %>% 
+  summary()
+
+
+```
+
+### Boxplot of PA_TOTAL_SHORT after MICE_imputation
+
+```{r}
+
+pa_short_plot <- data_mice_complete %>% 
+  ggplot(aes(PA_TOTAL_SHORT_imp))+
+  geom_boxplot()+
+  labs(title = "Boxplot of Total physcial activity after MICE imputation",
+       subtitle = "Median can be seen around around 1700")+
+  coord_flip()
+
+pa_short_plot
+```
+
+
+We can see the median value for physical activity before and after mice imputation are close ~ 1700. Comparing to mean_imputation( which had a median of ~ 2500). we can say mean_imputation can over or in other situations underestimate a sample parameter. 
+
+```{r}
+health_data_joined <- miss_var_summary(health_data_c)
+health_data_joined
+```
+
+# **Using KNN Methods**
+
+## Overview of Dataset without imputed missing values
+
+```{r}
+health_data %>% 
+  head()
+
+health_data %>% 
+  summarise_all(~sum(is.na(.)))
+
+```
+
+## KNN Imputation using "VIM"
+ 
+```{r}
+
+knn_imputed <- VIM::kNN(health_data, k = 3) # K is number of neighbors.
+
+knn_imputed %>% 
+  head()
+
+```
+
+
+### Summary of Dataset after KNN Imputation
+
+```{r}
+knn_imputed %>% 
+  summary()
+
+```
+
+
+### Boxplot of PA_TOTAL_SHORT before KNN_imputation
+
+```{r}
+
+pa_short_plot <- health_data %>% 
+  ggplot(aes(PA_TOTAL_SHORT))+
+  geom_boxplot()+
+  labs(title = "Boxplot of Total physcial activity before MICE imputation",
+       subtitle = "Median can be seen around around 1700")+
+  coord_flip()
+
+pa_short_plot
+
+```
+
+
+### Boxplot of PA_TOTAL_SHORT after KNN _imputation
+
+```{r}
+ggplot(knn_imputed, aes(PA_TOTAL_SHORT))+
+  geom_boxplot()+
+  coord_flip()+
+  labs(title = "Boxplot of PA_TOTAL_SHORT after KNN Imputation using VIM", 
+       subtitle = "Median value around 1800 min")
+```
+
+
+# **Regression Model**
+
+
+## Regression model using non_imputed dataset 
+
+```{r}
+pa_fruit_model <- lm (PA_TOTAL_SHORT ~ NUT_FRUITS_QTY, data = health_data )
+
+pa_fruit_model %>% 
+  summary()
+```
+
+
+## Regression model using mean imputed dataset 
+
+```{r}
+pa_fruit_model <- lm (PA_TOTAL_SHORT ~ NUT_FRUITS_QTY, data = data_shadow )
+
+pa_fruit_model %>% 
+  summary()
+```
+We can see that with a unit increase in NUT_FRUITS_QTY, Physical activity increases by 159.5 minutes which is statistically significant(p_value<0.001)
+
+
+## Regression model using MICE Imputed dataset
+
+```{r}
+set.seed(123)
+
+pa_fruits_model <- lm(PA_TOTAL_SHORT_imp ~ NUT_FRUITS_QTY_imp, data = data_mice_complete) #Linear Regression model  using dataset with imputations
+summary(pa_fruits_model)
+
+
+pa_fruits_miss <- data_mice_complete %>% with(lm(PA_TOTAL_SHORT_imp ~ NUT_FRUITS_QTY_imp)) # Pooled Regression 
+summary(pa_fruits_miss)
+```
+We can see from the pooled estimate that with a unit increase in NUT_FRUITS_QTY, Physical activity increases by 195 minutes which is statistically significant(p_value<0.001). 
+
+## Regression model using KNN Imputed dataset
+
+```{r}
+
+set.seed(123)
+
+pa_asthma_model <- lm(PA_TOTAL_SHORT ~ NUT_FRUITS_QTY, data = knn_imputed) #Linear Regression model  using dataset with KNN imputations
+summary(pa_asthma_model)
+
+
+pa_asthma_miss <- knn_imputed %>% with(lm(PA_TOTAL_SHORT ~ NUT_FRUITS_QTY)) # Pooled Regression 
+summary(pa_asthma_miss)
+```
+
+
+# **Summary of findings**
+
+## Table of Median Values accross imputation methods
+
+```{r}
+library(knitr)
+
+# Create a data frame for the medians
+median_table <- data.frame(
+  Imputation_Method = c("Not Imputed", "Mean Imputed", "MICE Imputed", "KNN Imputed"),
+  Median_Value = c(1782, 2379, 1782, 1812)
+)
+
+median_table
+```
+
+We can see the median value is between 1700 and around 1800 for Not imputed, MICE and KNN imputed physical activity. However, the median for the mean imputed physical activity column is 2379, which is an "outlier"
+
+## Regression model of PA_TOTAL_SHORT and NUT_FRUITS_QTY
+
+```{r}
+
+regression_table <- data.frame(
+  Imputation_Method = c("Not Imputed", "Mean Imputed", "MICE Imputed", "KNN Imputed"),
+  Intercept_B = c(2181, 2249, 2181, 2129),
+  Coefficient_NUT_FRUITS_QTY = c(193.79, 159, 195, 185),
+  P_Value = c("<2e-16", "<2e-16", "<2e-16", "<2e-16")
+)
+
+regression_table
+
+```
+
+A significant relationship was observed between fruit consumption and total minutes of physical activity across all models (p < 0.002). However, the mean-imputed regression model revealed a rather minor increase in physical activity minutes (159) per unit increase in fruit consumption.
+
+This may imply that mean imputation may underestimate the true effect of association between a predictor and an outcome 
+
+It can also be shown that the intercepts and coefficients of the Not Imputed, MICE, and KNN imputed methods are identical. This could be because the percentage of missing data in the dataset is insufficient to skew the estimates. However, a considerable difference may be noticed between imputed and non imputed models if the proportion of data loss is high. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
