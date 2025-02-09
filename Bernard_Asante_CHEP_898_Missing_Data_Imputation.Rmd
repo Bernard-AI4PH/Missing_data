@@ -22,11 +22,16 @@ library(VIM)
 
 # **Reading the dataset**
 
-```{r}
+```{r, warning=FALSE}
 path = "T:\\Desktop\\USASK\\Year One\\WINTER\\Data Science\\Data\\can_path_data.csv"
 
 data <- read_csv(path)
+
+#data %>% 
+  #glimpse()  # Output is too long. 
 ```
+
+Loading the entire can_path_student_dataset. This dataset has 440 variables(columns)  and 42287 observations(rows)
 
 ## Broad overview of missing data in dataset
 
@@ -34,44 +39,53 @@ data <- read_csv(path)
 miss_var_summary(data)
 ```
 
+It can be observed some variables has more than 99 % missing values, at least from the first 10 rows. These variables are probably missing not at random(MNAR). For efficiency seek, I have decided to retain only variables with less that 20% missing values. 
+
 ## Missing data overview
 
 ```{r}
-data <- data %>%
-          select(where(~sum(is.na(.x))/length(.x) < 0.17)) 
+data_pct <- data %>%
+          select(where(~sum(is.na(.x))/length(.x) < 0.20)) 
 
-missing_table <- miss_var_summary(data)
+missing_table <- miss_var_summary(data_pct)
 
 missing_table 
 
+```
 
-# Selecting 11 columns randomly from the dataset due to high computation power required for the entire dataset
+The 'missing_table' displayed above shows the percentage of missing data in the dataset after selecting variables with less that 20% missing data. The dataset with variables containing missing data less that 20% has been named "data_pct". Further processes will be performed on this data_pct instead of the entire dataset(data) 
+
+```{r}
+# Selecting 7 columns randomly from the dataset due to high computation power required for the entire dataset
 health_data <- data %>% 
   
   select(ID,HS_GEN_HEALTH,NUT_VEG_QTY, NUT_FRUITS_QTY,PA_TOTAL_SHORT,DIS_ASTHMA_EVER,DIS_DIAB_EVER)
 
-write.csv(health_data, "health_data.csv")
+write.csv(health_data, "health_data.csv",row.names = FALSE)
 ```
 
+This step is to further reduced the columns in the dataset to increase efficiency. Eleven(8) columns were selected from the data_pct(containing variables of less than 20% missing data). The output was saved as a new comma separated value(csv) file named "health_data.csv"
 
 # **Sliced dataset[health_data]**
 
 ```{r}
-
 
 health_data <- read_csv("health_data.csv")
 
 health_data %>% 
   glimpse()
 
-colnames(health_data)
 ```
+
+This is to give an overview of the new dataset (health_data.csv) displaying number of row (41187) and columns(7)
+
+
 ```{r}
 health_data  %>% 
-  head()
+  head()  # Displaying the first 6 rows of the dataet 
 
 health_data %>% 
-  tail()
+  tail()  # Displaying the first 6 rows of the dataet 
 ```
 
 ```{r}
@@ -93,6 +107,7 @@ missing_columns
 Now that I know  the missing values for each columns, I want to visualize them on a simple bar graph to see the order frequency of missing values for each column
 
 ## Visualization of missing data per columns 
+
 ```{r}
 missing_columns_long <- missing_columns %>% 
   pivot_longer(cols = HS_GEN_HEALTH:DIS_DIAB_EVER, names_to = "columns", values_to = "counts")
@@ -108,6 +123,7 @@ missing_plot <- missing_columns_long %>%
   
 missing_plot
 ```
+From the graph, it can be seen that PA-TOTAL_SHORT has the highest missing data around 7000 where as HS_GEN_HEALTH has the least values less that 1000. The next step is to calculate for the percentage of missing data in each column usinng the miss_var_summary
 
 ## Percentage of the missing data 
 
@@ -121,10 +137,13 @@ I know Physical activity variable has the highest missing values of 16.4% this i
 
 For other variables, the percentage of missing data is rarely a problem , Nut_veg_qty(6.19%), nut_fruits_qty(5.89%), Dis_asthma_Ever(2.98%) and Hs_Gen_health(1.63%). This is likely to make the data Missing Completely at Random(MCAR). However, it is hard to say for Pa_total_short which has a missing data 0f 16.4%, probably Missing at Random(MAR). These are mere assumptions and need to be analyzed further.
 
+The visdat package was used to make some visualization to better understand the pattern of missing data in the dataset.
+
 
 # **Visdat** 
 
 ## vis_dat()
+
 ```{r}
 data_col_type <- vis_dat(health_data)
 
@@ -137,7 +156,7 @@ The gray color represents missing values in the dataset. It can be seen that ID 
 ```{r}
 vis_miss(health_data)
 ```
-This is to display only the missing values. 
+This is to display only the missing values. The mising percentage can be seen against the names of each variable on the graph. This is same to the one observed using miss_var_summary from naniar package. 
 
 
 ## vis_cor()
@@ -148,11 +167,15 @@ health_data_numeric <- health_data %>%
 
 vis_cor(health_data_numeric)
 ```
+This heatmap is to display the correlation between the numeric variables in the dataset. There were moderate correlation observed between some of the variables; veg quantity and fruits quantity. similar observation is seen between diabetes ever and asthma ever. From theory, missing data in strongly correlated variables can be imputed using values from the other( except MNAR). But in this analysis, my interest is with Physical activity total which has mild correlation with the nutritional and diseases variables and  mild - moderate correlation with hs_gen_health.
 ## gg_miss_upset
 
 ```{r}
 gg_miss_upset(health_data)
 ```
+From the gg-miss_upset plot above, we can observe a connection between missing data points in physical activity and the nutritional(NUT) variables, Physical activity NA is connected to all the variables at the intersection size of 334. 
+
+I want to run further test to assess if the missingness in PA_TOTAL_SHORT is dependent on observed values in the other variables. 
 
 # **Determining the type of missingness**
 
@@ -162,7 +185,10 @@ gg_miss_upset(health_data)
 mcar_test(health_data)
 
 ```
-This suggest that the data is not missing completely at random. This is because, the null hypothesis states that the data is missing completely at random, pvalue of 0 means that the data is not missing completely at random.
+
+The mcar test has the null hypothesis: The missing data is completerly at random(MCAR). Alternative hypothesis states that, missing data is not completely at random that is, it can be MAR or MNAR. 
+
+The test had a pvalue less than 0.001. This is a strong evidence to reject the null hypothesis and conclude that the data is not missing completely at random. 
 
 I want to see if missingness in pa_total  is MAR or MNAR using logistic regression to see how the various variables predicts the "NA" variables in pa_total_short. Logistic regression is used here because the missing data "NA" is not continuous but rather "TRUE" or "FALSE" as can be seen in _missing_pa_total_. 
 
@@ -173,15 +199,15 @@ I want to see if missingness in pa_total  is MAR or MNAR using logistic regressi
 missing_Pa_total <- is.na(health_data$PA_TOTAL_SHORT) %>% 
   head()
 
-print(missing_Pa_total)
+print(missing_Pa_total)  # This displays the columns values as logical; TRUE and FALSE making binomial logistic regression appropriate
 
-glm(is.na(PA_TOTAL_SHORT) ~ HS_GEN_HEALTH + NUT_FRUITS_QTY + DIS_ASTHMA_EVER, 
+glm(is.na(PA_TOTAL_SHORT) ~ HS_GEN_HEALTH + NUT_FRUITS_QTY + DIS_ASTHMA_EVER + DIS_DIAB_EVER, 
     data = health_data, 
     family = binomial) %>% 
   summary()
 
 ```
-It can be observed that all the variables has a pvalue < 0.002 indicating they are significant predictors of the missingness in the pa_total_short variable. Again this is an assumption from the model and can not be proven with high certainty
+It can be observed that all the variables has a pvalue < 0.001 indicating they are significant predictors of the missingness in the pa_total_short variable. Again this is an assumption from the model and can not be proven with high certainty
 
 ## Geom_miss_plot
 
@@ -205,10 +231,12 @@ data_shadow %>%
   head()
 ```
 
+The data shadow add and indicator matrix to the dataset to display is a value is missing(NA) or not missing(!NA)
+
 # **Data Imputation**
 
 
-## Summarizing missing data 
+## Summarizing missing data
 
 ```{r}
 
@@ -221,6 +249,8 @@ health_data %>% summarise(
   median_data = median(PA_TOTAL_SHORT, na.rm = TRUE)
 )
 ```
+This data summary includes unique values (n_distinct = 3421), mean (mean_data = 2574.089), missing values (n_miss = 6763), and median (median_data = 1782).
+
 # **Mean Imputation**
 
 ```{r}
@@ -232,6 +262,8 @@ data_shadow <- impute_mean_at(data_shadow, .vars = vars(PA_TOTAL_SHORT))
 data_shadow %>% 
   head()
 ```
+This displays the first six(6) rows of the mean imputed physical activity total. 
+
 
 ## Visualizing Density Plots
 
@@ -241,6 +273,7 @@ density_mean_imp <- ggplot(data_shadow) +
                 geom_density(aes(PA_TOTAL_SHORT, colour= "PA_TOTAL_SHORT"))
 plot(density_mean_imp)
 ```
+It can be seen that the mean imputed has an increased peak  around 2500 minutes compared to the distribution of the not imputed variable. This shows that  the mean imputation has possibly inflated the mean compared to the sample distribution.
 
 ## Descriptive comparison of imputed and non imputed dataset
 
@@ -256,7 +289,7 @@ median_pa_imputed
 
 ```
 
-I can be observed that the median for non imputed pa short column  is 1782 and increased to 2379 after mean imputation. 
+It can be observed that the median for non imputed pa short column  is 1782 and increased to 2379 after mean imputation. 
 
 
 ## Boxplot of PA_TOTAL_SHORT before mean_imputation
@@ -299,15 +332,15 @@ The median value from the graph can not be determined explicitly with full certa
 
 ```{r}
 
-data_mice <- mice(health_data, m = 5, maxit = 5)
+data_mice <- mice(health_data, m = 5, maxit = 5) # imputing missing data for each variable in the dataset using MICE with 5  imputed datasets , and 5 control iterations.
 
 data_mice_complete <- complete(data_mice, action = "long")
 
 data_mice_complete %>% 
-  head()
+  head() # Displaying first six(6) rows of the MICE imputed dataset
 
 data_mice_complete %>% 
-  tail()
+  tail() # Displaying last six(6) rows of the MICE imputed dataset
 
 data_mice$method
 ```
@@ -322,7 +355,8 @@ data_mice_complete <- data_mice_complete %>%
          NUT_VEG_QTY_imp = NUT_VEG_QTY,
          NUT_FRUITS_QTY_imp = NUT_FRUITS_QTY,
          PA_TOTAL_SHORT_imp = PA_TOTAL_SHORT,
-         DIS_ASTHMA_EVER_imp = DIS_ASTHMA_EVER)
+         DIS_ASTHMA_EVER_imp = DIS_ASTHMA_EVER,
+         DIS_DIAB_EVER_imp = DIS_DIAB_EVER)
 
 data_mice_complete %>% 
   head()
@@ -340,6 +374,8 @@ health_data_c %>%
 
 ```
 
+The data_mice has been full join to the health_data to a common variable - health_data_c. This is to allow for comparison of imputed and not imputed variables 
+
 ## Data Visualization 
 
 ### Density plot of PA_TOTAL_SHORT
@@ -355,6 +391,7 @@ plot(density_imp)
 
 ```
 
+A similar distribution can be seen for Pa-total imputed and pa_total_not imputed. 
 
 
 ###  Density plot of PA_TOTAL_SHORT by .imp
@@ -366,6 +403,8 @@ density_m_5 <- health_data_c %>%
                 geom_density()
 plot(density_m_5)
 ```
+A similar distribution was seen for each imputation made using MICE. 
+
 
 The two main dataset that I am using are the health_data which contains missing data and data_mice_complete  which contains imputed values.Now this datasets have been joined to health_data_c. 
 
@@ -382,6 +421,8 @@ health_data_miss
 
 ```
 
+So the health_data variable contains non impyed variables. 
+
 ### Summary of dataset befoe MICE imputation
 
 ```{r}
@@ -390,6 +431,8 @@ health_data %>%
   summary()
 
 ```
+
+we can see NA's across each variable. This shows missing  data point(s) is not imputed. 
 
 ### Boxplot of PA_TOTAL_SHORT before MICE_imputation
 
@@ -405,7 +448,7 @@ pa_short_plot <- health_data %>%
 pa_short_plot
 ```
 
-We can see the median of Physical activity total is around 1700 minutes.
+We can see the median of Physical activity total is around 1700 minutes in the non imputed dataset.
 
 ### Summary of Dataset after MICE Imputation 
 
@@ -418,6 +461,8 @@ data_mice_complete %>%
 
 
 ```
+
+It can be seen that there is no missing data in the health_imputed dataset. This means the data points were correctly imputed using MICE.
 
 ### Boxplot of PA_TOTAL_SHORT after MICE_imputation
 
@@ -438,7 +483,8 @@ We can see the median value for physical activity before and after mice imputati
 
 ```{r}
 health_data_joined <- miss_var_summary(health_data_c)
-health_data_joined
+health_data_joined %>% 
+  head()
 ```
 
 # **Using KNN Methods**
@@ -447,12 +493,13 @@ health_data_joined
 
 ```{r}
 health_data %>% 
-  head()
+  head() # displaying the first six(6) rows in the raw dataset(non imputed)
 
 health_data %>% 
   summarise_all(~sum(is.na(.)))
 
 ```
+
 
 ## KNN Imputation using "VIM"
  
@@ -474,6 +521,7 @@ knn_imputed %>%
 
 ```
 
+This displays the summary of the variables after KNN imputation using K= 3 neighbors.  The various parameter in the summary table has been explained at the end of this script, for now I want ot focus on how it affected the meidan of pa_total compared to the non_imputed pa_total variable
 
 ### Boxplot of PA_TOTAL_SHORT before KNN_imputation
 
@@ -490,6 +538,8 @@ pa_short_plot
 
 ```
 
+This is a boxplot of PA_total on non imputed dataset. 
+
 
 ### Boxplot of PA_TOTAL_SHORT after KNN _imputation
 
@@ -501,6 +551,8 @@ ggplot(knn_imputed, aes(PA_TOTAL_SHORT))+
        subtitle = "Median value around 1800 min")
 ```
 
+
+This is the boxplot of PA_total after KNN imputation
 
 # **Regression Model**
 
