@@ -467,6 +467,7 @@ It can be seen that there is no missing data in the health_imputed dataset. This
 ### Boxplot of PA_TOTAL_SHORT after MICE_imputation
 
 ```{r}
+median(data_mice_complete$PA_TOTAL_SHORT_imp)
 
 pa_short_plot <- data_mice_complete %>% 
   ggplot(aes(PA_TOTAL_SHORT_imp))+
@@ -479,7 +480,7 @@ pa_short_plot
 ```
 
 
-We can see the median value for physical activity before and after mice imputation are close ~ 1700. Comparing to mean_imputation( which had a median of ~ 2500). we can say mean_imputation can over or in other situations underestimate a sample parameter. 
+We can see the median value for physical activity before and after mice imputation are close ~ 1800. Comparing to mean_imputation( which had a median of ~ 2500). we can say mean_imputation can over or in other situations underestimate a sample parameter. 
 
 ```{r}
 health_data_joined <- miss_var_summary(health_data_c)
@@ -521,7 +522,7 @@ knn_imputed %>%
 
 ```
 
-This displays the summary of the variables after KNN imputation using K= 3 neighbors.  The various parameter in the summary table has been explained at the end of this script, for now I want ot focus on how it affected the meidan of pa_total compared to the non_imputed pa_total variable
+This displays the summary of the variables after KNN imputation using K = 3 neighbors.  The various parameters in the summary table has been explained at the end of this script, for now I want to focus on how it affected the median of pa_total compared to the non_imputed pa_total variable.
 
 ### Boxplot of PA_TOTAL_SHORT before KNN_imputation
 
@@ -552,7 +553,7 @@ ggplot(knn_imputed, aes(PA_TOTAL_SHORT))+
 ```
 
 
-This is the boxplot of PA_total after KNN imputation
+This is the boxplot of PA_total after KNN imputation with median around 1800
 
 # **Regression Model**
 
@@ -565,7 +566,7 @@ pa_fruit_model <- lm (PA_TOTAL_SHORT ~ NUT_FRUITS_QTY, data = health_data )
 pa_fruit_model %>% 
   summary()
 ```
-
+We can see that the model with missing data showed a significant association between fruit quantity and physical activity total with a pvalue less than 0.001. A unit increase in fruit quantity, increases physical activity by 193.79 minutes. 
 
 ## Regression model using mean imputed dataset 
 
@@ -575,6 +576,7 @@ pa_fruit_model <- lm (PA_TOTAL_SHORT ~ NUT_FRUITS_QTY, data = data_shadow )
 pa_fruit_model %>% 
   summary()
 ```
+
 We can see that with a unit increase in NUT_FRUITS_QTY, Physical activity increases by 159.5 minutes which is statistically significant(p_value<0.001)
 
 
@@ -590,6 +592,7 @@ summary(pa_fruits_model)
 pa_fruits_miss <- data_mice_complete %>% with(lm(PA_TOTAL_SHORT_imp ~ NUT_FRUITS_QTY_imp)) # Pooled Regression 
 summary(pa_fruits_miss)
 ```
+
 We can see from the pooled estimate that with a unit increase in NUT_FRUITS_QTY, Physical activity increases by 195 minutes which is statistically significant(p_value<0.001). 
 
 ## Regression model using KNN Imputed dataset
@@ -617,7 +620,7 @@ library(knitr)
 # Create a data frame for the medians
 median_table <- data.frame(
   Imputation_Method = c("Not Imputed", "Mean Imputed", "MICE Imputed", "KNN Imputed"),
-  Median_Value = c(1782, 2379, 1782, 1812)
+  Median_Value = c(1782, 2379, 1798, 1812)
 )
 
 median_table
@@ -632,7 +635,7 @@ We can see the median value is between 1700 and around 1800 for Not imputed, MIC
 regression_table <- data.frame(
   Imputation_Method = c("Not Imputed", "Mean Imputed", "MICE Imputed", "KNN Imputed"),
   Intercept_B = c(2181, 2249, 2181, 2129),
-  Coefficient_NUT_FRUITS_QTY = c(193.79, 159, 195, 185),
+  Coefficient_NUT_FRUITS_QTY = c(193.79, 159, 190, 179),
   P_Value = c("<2e-16", "<2e-16", "<2e-16", "<2e-16")
 )
 
@@ -642,7 +645,7 @@ regression_table
 
 A significant relationship was observed between fruit consumption and total minutes of physical activity across all models (p < 0.002). However, the mean-imputed regression model revealed a rather minor increase in physical activity minutes (159) per unit increase in fruit consumption.
 
-This may imply that mean imputation may underestimate the true effect of association between a predictor and an outcome 
+This may imply that mean imputation  underestimated the true effect of association between the predictor and an outcome 
 
 It can also be shown that the intercepts and coefficients of the Not Imputed, MICE, and KNN imputed methods are identical. This could be because the percentage of missing data in the dataset is insufficient to skew the estimates. However, a considerable difference may be noticed between imputed and non imputed models if the proportion of data loss is high. 
 
