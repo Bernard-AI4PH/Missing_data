@@ -339,6 +339,12 @@ We can see the median for the non imputed variable is around 1700, The median va
 
 # **MICE Imputation**
 
+Numeric Variables are Imputed using Predictive Mean Matching (PMM) by default. This involves building a linear regression model on complete cases, predicting values for missing cases, and then drawing imputed values from observed cases with similar predicted values.
+
+Binary Categorical Variable (DIS_ASTHMA, DIS_DIAB) are Imputed using Logistic Regression. This involves building a logistic regression model to predict the probability of belonging to one of the two categories based on the other complete variables. The imputed value is then drawn based on this predicted probability.
+
+mice will automatically apply PMM to the numeric variables and logistic regression to the binary categorical variable by default
+
 ```{r}
 
 data_mice <- mice(health_data, m = 5, maxit = 5) # imputing missing data for each variable in the dataset using MICE with 5  imputed datasets , and 5 control iterations.
@@ -354,9 +360,11 @@ data_mice_complete %>%
 data_mice$method
 ```
 
-I want to join the variables in data_mice_complete with health_data. However, they have the same columns name which may be confusing, so I want to rename the data_mice_complete variable. 
 
 ## Renaming of data_mice variables 
+
+
+I want to join the variables in data_mice_complete with health_data. However, they have the same columns name which may be confusing, so I want to rename the data_mice_complete variable. 
 
 ```{r}
 data_mice_complete <- data_mice_complete %>% 
@@ -376,7 +384,7 @@ data_mice_complete %>%
 
 ```{r}
 
-health_data_c <- full_join( health_data, data_mice_complete, by = join_by("ID")) 
+health_data_c <- full_join( health_data, data_mice_complete, by = join_by("ID"))   # This code merges the original dataset health_data with a mice-imputed dataset data_mice_complete using a full join on the ID column. The resulting health_data_c contains both the original and imputed values, allowing side-by-side comparison of variables before and after imputation.
 
 health_data_c %>% 
   head()
@@ -421,16 +429,6 @@ Let me summarize all the datasets before I proceed.
 
 ## Descriptive summary of Dataset before and after MICE imputation
 
-###  Descriptive summary of health_data before imputation
-
-```{r}
-health_data_miss <- miss_var_summary(health_data)
-
-health_data_miss
-
-```
-
-So the health_data variable contains non impyed variables. 
 
 ### Summary of dataset befoe MICE imputation
 
@@ -443,21 +441,6 @@ health_data %>%
 
 we can see NA's across each variable. This shows missing  data point(s) is not imputed. 
 
-### Boxplot of PA_TOTAL_SHORT before MICE_imputation
-
-```{r}
-
-pa_short_plot <- health_data %>% 
-  ggplot(aes(PA_TOTAL_SHORT))+
-  geom_boxplot()+
-  labs(title = "Boxplot of Total physcial activity before MICE imputation",
-       subtitle = "Median can be seen around around 1700")+
-  coord_flip()
-
-pa_short_plot
-```
-
-We can see the median of Physical activity total is around 1700 minutes in the non imputed dataset.
 
 ### Summary of Dataset after MICE Imputation 
 
@@ -473,29 +456,40 @@ data_mice_complete %>%
 
 It can be seen that there is no missing data in the health_imputed dataset. This means the data points were correctly imputed using MICE.
 
+
+### Boxplot of PA_TOTAL_SHORT before MICE_imputation
+
+```{r}
+
+plot_before_mice <- health_data %>% 
+  ggplot(aes(PA_TOTAL_SHORT))+
+  geom_boxplot()+
+  labs(title = "Boxplot of Total physcial activity before MICE imputation",
+       subtitle = "Median can be seen around around 1700")+
+  coord_flip()  # This code creates a horizontal boxplot of PA_TOTAL_SHORT values from the original health_data dataset before MICE imputation. It uses geom_boxplot() to visualize the distribution, central tendency (median), and potential outliers. The plot includes a descriptive title and subtitle.
+
+```
+
+
+
 ### Boxplot of PA_TOTAL_SHORT after MICE_imputation
 
 ```{r}
-median(data_mice_complete$PA_TOTAL_SHORT_imp)
-
-pa_short_plot <- data_mice_complete %>% 
+plot_after_mice <- pa_short_plot <- data_mice_complete %>% 
   ggplot(aes(PA_TOTAL_SHORT_imp))+
   geom_boxplot()+
   labs(title = "Boxplot of Total physcial activity after MICE imputation",
        subtitle = "Median can be seen around around 1700")+
-  coord_flip()
+  coord_flip() # This code creates a horizontal boxplot of PA_TOTAL_SHORT values from the original health_data dataset after MICE imputation. It uses geom_boxplot() to visualize the distribution, central tendency (median), and potential outliers. The plot includes a descriptive title and subtitle.
 
-pa_short_plot
 ```
-
-
-We can see the median value for physical activity before and after mice imputation are close ~ 1800. Comparing to mean_imputation( which had a median of ~ 2500). we can say mean_imputation can over or in other situations underestimate a sample parameter. 
-
 ```{r}
-health_data_joined <- miss_var_summary(health_data_c)
-health_data_joined %>% 
-  head()
+plot_grid(plot_before_mice, plot_after_mice)
 ```
+
+
+We can see the median value for physical activity before and after mice imputation are close ~ 1700. Comparing to mean_imputation( which had a median of ~ 2500). we can say mean_imputation can over or in other situations underestimate a sample parameter. 
+
 
 # **Using KNN Methods**
 
@@ -506,7 +500,7 @@ health_data %>%
   head() # displaying the first six(6) rows in the raw dataset(non imputed)
 
 health_data %>% 
-  summarise_all(~sum(is.na(.)))
+  summarise_all(~sum(is.na(.)))  # Displaying missing values in each column 
 
 ```
 
@@ -515,7 +509,7 @@ health_data %>%
  
 ```{r}
 
-knn_imputed <- VIM::kNN(health_data, k = 3) # K is number of neighbors.
+knn_imputed <- VIM::kNN(health_data, k = 3) # This code applies K-Nearest Neighbors (KNN) imputation using the VIM::kNN() function to fill missing values in the health_data dataset, using k=3 nearest neighbors. The method replaces missing entries with values from the most similar observations based on other variable patterns. The result, knn_imputed, contains both imputed values and indicators of where imputation occurred.
 
 knn_imputed %>% 
   head()
@@ -527,11 +521,11 @@ knn_imputed %>%
 
 ```{r}
 knn_imputed %>% 
-  summary()
+  summary() # This displays the summary of the variables after KNN imputation using K = 3 neighbors. 
 
 ```
 
-This displays the summary of the variables after KNN imputation using K = 3 neighbors.  The various parameters in the summary table has been explained at the end of this script, for now I want to focus on how it affected the median of pa_total compared to the non_imputed pa_total variable.
+The various parameters in the summary table has been explained at the end of this script, for now I want to focus on how it affected the median of pa_total compared to the non_imputed pa_total variable.
 
 ### Boxplot of PA_TOTAL_SHORT before KNN_imputation
 
@@ -540,47 +534,56 @@ This displays the summary of the variables after KNN imputation using K = 3 neig
 pa_short_plot <- health_data %>% 
   ggplot(aes(PA_TOTAL_SHORT))+
   geom_boxplot()+
-  labs(title = "Boxplot of Total physcial activity before MICE imputation",
+  labs(title = "Boxplot of Total physcial activity before KNN imputation",
        subtitle = "Median can be seen around around 1700")+
-  coord_flip()
-
-pa_short_plot
+  coord_flip()  # This code creates a horizontal boxplot of PA_TOTAL_SHORT from the original health_data before applying KNN imputation. It uses geom_boxplot() to visualize the data’s spread, central tendency (median), and potential outliers, with a clear title and subtitle for interpretation.
 
 ```
-
-This is a boxplot of PA_total on non imputed dataset. 
 
 
 ### Boxplot of PA_TOTAL_SHORT after KNN _imputation
 
 ```{r}
-ggplot(knn_imputed, aes(PA_TOTAL_SHORT))+
+pa_short_plot_knn <-ggplot(knn_imputed, aes(PA_TOTAL_SHORT))+
   geom_boxplot()+
   coord_flip()+
   labs(title = "Boxplot of PA_TOTAL_SHORT after KNN Imputation using VIM", 
-       subtitle = "Median value around 1800 min")
+       subtitle = "Median value around 1700 min") # This code creates a horizontal boxplot of PA_TOTAL_SHORT from the original health_data afterapplying KNN imputation. It uses geom_boxplot() to visualize the data’s spread, central tendency (median), and potential outliers, with a clear title and subtitle for interpretation.
 ```
 
 
-This is the boxplot of PA_total after KNN imputation with median around 1800
+### BOxplot of Pa_total_short comparison
+
+```{r}
+plot_grid(pa_short_plot,pa_short_plot_knn)
+```
+
+It can be observed that the distribution of the variable mean did not change significantly after KNN Imputation 
 
 # **Regression Model**
 
+I want to use simple regression to further show or display how the various types of data imputation method used in this porject affects or bias an association. 
+
+I will build 4 regression models for:
+1. the raw dataset with missing values,
+2. the mean imputed dataset 
+3. the MICE imputed dataset 
+4. KNN dataset
 
 ## Regression model using non_imputed dataset 
 
 ```{r}
-pa_fruit_model <- lm (PA_TOTAL_SHORT ~ NUT_FRUITS_QTY, data = health_data )
+pa_fruit_model <- lm (PA_TOTAL_SHORT ~ NUT_FRUITS_QTY, data = health_data )  # This code fits a simple linear regression model using lm() to predict PA_TOTAL_SHORT (total physical activity) based on NUT_FRUITS_QTY (daily fruit intake). 
 
 pa_fruit_model %>% 
-  summary()
+  summary()  # The summary() function outputs model coefficients, R-squared, and statistical significance for the relationship.
 ```
 We can see that the model with missing data showed a significant association between fruit quantity and physical activity total with a pvalue less than 0.001. A unit increase in fruit quantity, increases physical activity by 193.79 minutes. 
 
 ## Regression model using mean imputed dataset 
 
 ```{r}
-pa_fruit_model <- lm (PA_TOTAL_SHORT ~ NUT_FRUITS_QTY, data = data_shadow )
+pa_fruit_model <- lm (PA_TOTAL_SHORT ~ NUT_FRUITS_QTY, data = data_shadow ) # This code fits a linear regression model on the mean_imputed dataset from fruit intake (NUT_FRUITS_QTY).
 
 pa_fruit_model %>% 
   summary()
@@ -594,7 +597,7 @@ We can see that with a unit increase in NUT_FRUITS_QTY, Physical activity increa
 ```{r}
 set.seed(123)
 
-pa_fruits_model <- lm(PA_TOTAL_SHORT_imp ~ NUT_FRUITS_QTY_imp, data = data_mice_complete) #Linear Regression model  using dataset with imputations
+pa_fruits_model <- lm(PA_TOTAL_SHORT_imp ~ NUT_FRUITS_QTY_imp, data = data_mice_complete) #Linear Regression model  using dataset with  mice imputations
 summary(pa_fruits_model)
 
 
@@ -626,7 +629,7 @@ summary(pa_asthma_miss)
 ```{r}
 library(knitr)
 
-# Create a data frame for the medians
+# Create a data frame for the medians of the various imputed datasets 
 median_table <- data.frame(
   Imputation_Method = c("Not Imputed", "Mean Imputed", "MICE Imputed", "KNN Imputed"),
   Median_Value = c(1782, 2379, 1798, 1812)
@@ -646,7 +649,7 @@ regression_table <- data.frame(
   Intercept_B = c(2181, 2249, 2181, 2129),
   Coefficient_NUT_FRUITS_QTY = c(193.79, 159, 190, 179),
   P_Value = c("<2e-16", "<2e-16", "<2e-16", "<2e-16")
-)
+) # This code creates a summary data frame named regression_table comparing the results of four linear regression models predicting PA_TOTAL_SHORT using NUT_FRUITS_QTY, each based on a different imputation method. The table includes the intercept, coefficient for fruit intake, and the associated p-values.
 
 regression_table
 
