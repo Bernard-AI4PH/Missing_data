@@ -18,6 +18,7 @@ library(visdat)
 library(naniar)
 library(mice)
 library(VIM)
+library(cowplot)
 ```
 
 # **Reading the dataset**
@@ -36,7 +37,7 @@ Loading the entire can_path_student_dataset. This dataset has 440 variables(colu
 ## Broad overview of missing data in dataset
 
 ```{r}
-miss_var_summary(data)
+miss_var_summary(data) #The function miss_var_summary(data) from the naniar package summarizes missing data by variable. It returns a table showing the number and percentage of missing values for each column in the dataset. This helps identify which variables are most affected by missingness.
 ```
 
 It can be observed some variables has more than 99 % missing values, at least from the first 10 rows. These variables are probably missing not at random(MNAR). For efficiency seek, I have decided to retain only variables with less that 20% missing values. 
@@ -45,11 +46,11 @@ It can be observed some variables has more than 99 % missing values, at least fr
 
 ```{r}
 data_pct <- data %>%
-          select(where(~sum(is.na(.x))/length(.x) < 0.20)) 
+          select(where(~sum(is.na(.x))/length(.x) < 0.20))  #This code filters the dataset data to retain only variables with less than 20% missing values.  
+missing_table <- miss_var_summary(data_pct) #It then generates a summary table of missing values for the filtered dataset using miss_var_summary().
 
-missing_table <- miss_var_summary(data_pct)
+missing_table # missing_table is the variable showing how much missing data remains in each retained variable.
 
-missing_table 
 
 ```
 
@@ -73,7 +74,7 @@ This step is to further reduced the columns in the dataset to increase efficienc
 health_data <- read_csv("health_data.csv")
 
 health_data %>% 
-  glimpse()
+  glimpse()   #The glimpse() function from the dplyr package provides a quick, structured overview of the health_data dataset. It shows the number of rows and columns, as well as the type and a preview of values in each column. This helps understand the structure and content of the dataset at a glance.
 
 ```
 
@@ -90,15 +91,16 @@ health_data %>%
 
 ```{r}
 health_data %>% 
-  summary()
+  summary() # The summary() function provides basic descriptive statistics for each variable in the health_data dataset. For numeric variables, it returns the minimum, 1st quartile, median, mean, 3rd quartile, and maximum values, along with the count of missing values (NA's). This offers a statistical snapshot of the dataset’s distribution and data quality.
 ```
-It can be observed that each variable has a missing data (NA's)
+
+It can be observed that each variable has a missing data (NA's). This will be explained further in the next code
 
 # **Missing Data Exploration**
 
 ```{r}
 missing_columns <- health_data %>% 
-  summarise_all(~sum(is.na(.)))
+  summarise_all(~sum(is.na(.))) # This code calculates the total number of missing values in each column of the health_data dataset. It uses summarise_all() with a function that counts NAs, returning a one-row summary where each column shows its respective missing count. The result is stored in missing_columns.
   
 
 missing_columns
@@ -110,28 +112,34 @@ Now that I know  the missing values for each columns, I want to visualize them o
 
 ```{r}
 missing_columns_long <- missing_columns %>% 
-  pivot_longer(cols = HS_GEN_HEALTH:DIS_DIAB_EVER, names_to = "columns", values_to = "counts")
+  pivot_longer(cols = HS_GEN_HEALTH:DIS_DIAB_EVER, names_to = "columns", values_to = "counts") #This code reshapes the missing_columns summary into a long format using pivot_longer(), converting each column name and its missing value count into row entries. 
 
-missing_columns_long
+missing_columns_long     #The new dataframe missing_columns_long contains two columns: columns (variable names) and counts (number of missing values). This format is ideal for plotting
+```
 
+Here we see columns and counts(which represents the number of missing values in each variable)
+
+```{r}
 missing_plot <- missing_columns_long %>% 
   ggplot(aes(x = reorder(columns,counts), y = counts))+
   geom_segment(aes(x = reorder(columns,counts), yend = counts, xend = reorder(columns,counts), y =0))+
   geom_point(size = 4, colour = "#a13")+
   coord_flip()+
-  labs(title = "Bar Graph of missing data in the dataset by columns", x = "Column_names")
+  labs(title = "Bar Graph of missing data in the dataset by columns", x = "Column_names")  # This code uses ggplot2 to create a horizontal bar plot showing the number of missing values per column in the dataset. It uses geom_segment() to draw the bars and geom_point() to emphasize each missing count. The columns are reordered by the number of missing values for better readability, and coord_flip() is used to display the bars horizontally.
   
 missing_plot
 ```
+
 From the graph, it can be seen that PA-TOTAL_SHORT has the highest missing data around 7000 where as HS_GEN_HEALTH has the least values less that 1000. The next step is to calculate for the percentage of missing data in each column usinng the miss_var_summary
 
 ## Percentage of the missing data 
 
 ```{r}
-missing_data <- miss_var_summary(health_data)
+missing_data <- miss_var_summary(health_data) # This code uses miss_var_summary() to generate a summary of missing values for each variable in health_data, including both count and percentage of missing values. 
 
 missing_data %>% 
-  head(5)
+  head(5) # The head(5) function then displays the top 5 variables with the highest missing value counts. 
+
 ```
 I know Physical activity variable has the highest missing values of 16.4% this is evident from the bar graph above.
 
@@ -145,16 +153,16 @@ The visdat package was used to make some visualization to better understand the 
 ## vis_dat()
 
 ```{r}
-data_col_type <- vis_dat(health_data)
+data_col_type <- vis_dat(health_data)  # The vis_dat(health_data) function from the visdat package creates a visualization showing the data type and missingness for each variable in the dataset. Each cell in the plot represents a data value, color-coded by type ( numeric, character, missing as seen in the plot). 
 
-data_col_type
+data_col_type # The output data_col_type is a ggplot object displaying this structure.
 ```
 The gray color represents missing values in the dataset. It can be seen that ID has no missing values. Few missing values was seen with some variables which corresponds to the percentages above and the bar graph. we can see a lot of missing data in the Pa_total_short column.
 
 ## Vis_miss()
 
 ```{r}
-vis_miss(health_data)
+vis_miss(health_data) # This code use the vis_miss() from the visdt package to display the percentage of missing data in each variable. 
 ```
 This is to display only the missing values. The mising percentage can be seen against the names of each variable on the graph. This is same to the one observed using miss_var_summary from naniar package. 
 
@@ -163,15 +171,15 @@ This is to display only the missing values. The mising percentage can be seen ag
 
 ```{r}
 health_data_numeric <- health_data %>% 
-  select(where(is.numeric)) # Selecting only numeric variables 
+  select(where(is.numeric)) # Selecting only numeric variables becuase the  vis_cor() function works on only numerical variables
 
-vis_cor(health_data_numeric)
+vis_cor(health_data_numeric) # The function computes pairwise correlations and produces a heatmap that visually represents the strength and direction of relationships between numeric variables. Correlation values range from -1 (perfect negative) to +1 (perfect positive) with colour bar explaining the degree of correlation.
 ```
 This heatmap is to display the correlation between the numeric variables in the dataset. There were moderate correlation observed between some of the variables; veg quantity and fruits quantity. similar observation is seen between diabetes ever and asthma ever. From theory, missing data in strongly correlated variables can be imputed using values from the other( except MNAR). But in this analysis, my interest is with Physical activity total which has mild correlation with the nutritional and diseases variables and  mild - moderate correlation with hs_gen_health.
 ## gg_miss_upset
 
 ```{r}
-gg_miss_upset(health_data)
+gg_miss_upset(health_data)  # The gg_miss_upset(health_data) function from the naniar package creates an UpSet plot that visualizes combinations of missing values across multiple variables. It shows how many observations have missing data in specific columns and in what combinations. This is especially useful when dealing with overlapping missingness in multiple variables.
 ```
 From the gg-miss_upset plot above, we can observe a connection between missing data points in physical activity and the nutritional(NUT) variables, Physical activity NA is connected to all the variables at the intersection size of 334. 
 
@@ -182,7 +190,7 @@ I want to run further test to assess if the missingness in PA_TOTAL_SHORT is dep
 ## Little MCAR test from naniar
 
 ```{r}
-mcar_test(health_data)
+mcar_test(health_data) # The mcar_test(health_data) function from the naniar package performs Little’s MCAR (Missing Completely At Random) test on the dataset. It statistically tests whether the missing data pattern is completely random or not. The output includes a chi-square statistic, degrees of freedom, and a p-value.
 
 ```
 
@@ -197,14 +205,15 @@ I want to see if missingness in pa_total  is MAR or MNAR using logistic regressi
 ```{r}
 
 missing_Pa_total <- is.na(health_data$PA_TOTAL_SHORT) %>% 
-  head()
+  head() #This code  is to give a logical output(TRUE or FAlSe) is there is missing value in PA_TOTAL_SHORT
 
 print(missing_Pa_total)  # This displays the columns values as logical; TRUE and FALSE making binomial logistic regression appropriate
 
 glm(is.na(PA_TOTAL_SHORT) ~ HS_GEN_HEALTH + NUT_FRUITS_QTY + DIS_ASTHMA_EVER + DIS_DIAB_EVER, 
     data = health_data, 
     family = binomial) %>% 
-  summary()
+  summary()   # This code fits a binomial logistic regression model to predict whether the variable PA_TOTAL_SHORT is missing (TRUE) or not (FALSE). The predictors used are HS_GEN_HEALTH, NUT_FRUITS_QTY, DIS_ASTHMA_EVER, and DIS_DIAB_EVER. The model estimates the likelihood of missingness in PA_TOTAL_SHORT based on these other health-related variables.
+
 
 ```
 It can be observed that all the variables has a pvalue < 0.001 indicating they are significant predictors of the missingness in the pa_total_short variable. Again this is an assumption from the model and can not be proven with high certainty
@@ -215,7 +224,7 @@ It can be observed that all the variables has a pvalue < 0.001 indicating they a
 scatter_plot_miss <- ggplot(health_data, aes(x = NUT_FRUITS_QTY, y = PA_TOTAL_SHORT)) + 
                   geom_miss_point(alpha = 0.2) +
                   labs(x = "Fruits", y = "Physical Activity")
-plot(scatter_plot_miss)
+plot(scatter_plot_miss)  # This code creates a scatter plot using ggplot2 with geom_miss_point() from the naniar package, which plots data points while also highlighting missing values. The x-axis represents NUT_FRUITS_QTY and the y-axis PA_TOTAL_SHORT, with semi-transparent (alpha = 0.2) points. Missing values in either variable are marked distinctly with default "orange" colour.
 ```
 It can be observed that missing decreases as fruit intake  increases above 8. A lot of missing data was also between 0 to 5000 minutes of exercise, however, missingness reduces above 5000 minutes upwards.
 
@@ -225,13 +234,13 @@ It can be observed that missing decreases as fruit intake  increases above 8. A 
 
 ```{r}
 data_shadow <- health_data %>% 
-  bind_shadow()
+  bind_shadow()  # The bind_shadow() function from the naniar package appends shadow columns to the original health_data dataset. For every original variable, it creates a new column with the _NA suffix, indicating whether each value is missing (NA) or not (!NA). The result, data_shadow, enables tracking and modeling of missingness directly.
 
 data_shadow %>% 
-  head()
+  head() # This displays the first 6 rows of the data_shadow variable
 ```
 
-The data shadow add and indicator matrix to the dataset to display is a value is missing(NA) or not missing(!NA)
+The data shadow add an indicator matrix to the dataset to display is a value is missing(NA) or not missing(!NA)
 
 # **Data Imputation**
 
@@ -240,14 +249,14 @@ The data shadow add and indicator matrix to the dataset to display is a value is
 
 ```{r}
 
-summary(health_data$PA_TOTAL_SHORT)
+summary(health_data$PA_TOTAL_SHORT) # The  line  of code provides a five-number summary and counts of missing values in PA_TOTAL_SHORT. 
 
 health_data %>% summarise(
   n_distinct = n_distinct(PA_TOTAL_SHORT),
   mean_data = mean(PA_TOTAL_SHORT,na.rm = TRUE),
   n_miss = sum(is.na(PA_TOTAL_SHORT)),
   median_data = median(PA_TOTAL_SHORT, na.rm = TRUE)
-)
+)  # This code uses summarise() to calculate specific statistics: number of unique values (n_distinct), mean, median, and total number of missing entries. Missing values are excluded (na.rm = TRUE) from mean and median calculations.
 ```
 This data summary includes unique values (n_distinct = 3421), mean (mean_data = 2574.089), missing values (n_miss = 6763), and median (median_data = 1782).
 
@@ -256,7 +265,7 @@ This data summary includes unique values (n_distinct = 3421), mean (mean_data = 
 ```{r}
 data_shadow$pa_not_imputed <- data_shadow$PA_TOTAL_SHORT  # Adding a column called pa_not_imputed to maintain pa_total values after imputation
 
-data_shadow <- impute_mean_at(data_shadow, .vars = vars(PA_TOTAL_SHORT))
+data_shadow <- impute_mean_at(data_shadow, .vars = vars(PA_TOTAL_SHORT))  # This code uses the impute_mean_at() function to fill in missing values in the PA_TOTAL_SHORT variable with its mean value. It applies the imputation to the data_shadow dataset, which includes shadow columns tracking missingness. This is a simple, fast method suitable when data is assumed to be Missing Completely At Random (MCAR).
 
 
 data_shadow %>% 
@@ -271,7 +280,7 @@ This displays the first six(6) rows of the mean imputed physical activity total.
 density_mean_imp <- ggplot(data_shadow) +
                 geom_density(aes(pa_not_imputed, colour= "pa_not_imputed")) +
                 geom_density(aes(PA_TOTAL_SHORT, colour= "PA_TOTAL_SHORT"))
-plot(density_mean_imp)
+plot(density_mean_imp)  # This ggplot2 code creates a density plot to compare the distribution of the original (non-imputed) PA_TOTAL_SHORT values (pa_not_imputed) with the mean-imputed values in PA_TOTAL_SHORT. Different colors are used to distinguish the two distributions, providing a visual comparison of their shapes.
 ```
 It can be seen that the mean imputed has an increased peak  around 2500 minutes compared to the distribution of the not imputed variable. This shows that  the mean imputation has possibly inflated the mean compared to the sample distribution.
 
@@ -294,9 +303,10 @@ It can be observed that the median for non imputed pa short column  is 1782 and 
 
 ## Boxplot of PA_TOTAL_SHORT before mean_imputation
 
+The code below is to measure side by side the distribution of the variables after and before imputation using a boxplot. 
 
 ```{r}
-ggplot(data_shadow, aes(x  = pa_not_imputed)) +
+Non_imputed_pa <- ggplot(data_shadow, aes(x  = pa_not_imputed)) +
          geom_boxplot(outlier.shape = NA) +  # Avoid extreme outliers hiding the boxplot
          labs(title = " Total Physical Activity Before Mean Imputation",
               subtitle = "Median around 1700 ",
@@ -305,15 +315,12 @@ ggplot(data_shadow, aes(x  = pa_not_imputed)) +
          theme_minimal()
 ```
 
-We can see the median for the non imputed variable is around 1700
-
-
 ## Boxplot of PA_TOTAL_SHORT after mean_imputation
 
 ```{r, warning=FALSE}
 
-ggplot(data_shadow, aes(x  = PA_TOTAL_SHORT)) +
-  geom_boxplot(oulier.shape = NA) +
+imputed_pa <- ggplot(data_shadow, aes(x  = PA_TOTAL_SHORT)) +
+  geom_boxplot(outlier.shape = NA) +  # Avoid extreme outliers hiding the boxplot
   labs(title = " Total Physical Activity after Mean Imputation",
        subtitle = "Median around 2500 ",
        y = "Total Physical Activity") +
@@ -322,10 +329,12 @@ ggplot(data_shadow, aes(x  = PA_TOTAL_SHORT)) +
 
 ```
 
+## Boxplot comparing non_imputed and imputed variable statistics 
 
-
-
-The median value from the graph can not be determined explicitly with full certainty however, it is probably around  2500. Mean imputation can bias estimate from these observations. 
+```{r}
+plot_grid(Non_imputed_pa, imputed_pa)
+```
+We can see the median for the non imputed variable is around 1700, The median value from the imputed  graph can not be determined explicitly with full certainty however, it is probably around  2500. Mean imputation can bias estimate from these observations. 
 
 
 # **MICE Imputation**
